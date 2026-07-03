@@ -1,0 +1,15 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+scratch/
+.idea/
+.DS_Store
+.claude/
+*.tgz
+workflow.yml
+sites.yml
+*.dot
+*.replicas.yml
+*.transformations.yml
+pegasus.properties

@@ -1,0 +1,65 @@
+{
+  "region": "snowy_range_wy",
+  "description": "Subalpine watershed around the GLEES AmeriFlux site in the Snowy Range, Medicine Bow National Forest, WY. Drought, snowmelt, and wildfire monitoring domain.",
+  "bbox": {
+    "min_lat": 41.20,
+    "max_lat": 41.55,
+    "min_lon": -106.45,
+    "max_lon": -106.05
+  },
+  "date_range": {
+    "start": "2023-05-01",
+    "end": "2023-10-01"
+  },
+  "glees": {
+    "site_id": "US-GLE",
+    "name": "Glacier Lakes Ecosystem Experiments Site (Brooklyn Tower)",
+    "lat": 41.3665,
+    "lon": -106.2399,
+    "elevation_m": 3197,
+    "vegetation": "Evergreen Needleleaf Forest (subalpine spruce-fir)",
+    "base_doi": "10.17190/AMF/1246056"
+  },
+  "snotel": {
+    "comment": "NRCS SNOTEL station Brooklyn Lake (#367), co-located with GLEES (~1 km). Public AWDB REST API, no auth. Primary live source for snow/SWE/soil/met while the GLEES Thor Blade is unavailable (see SPEC.md no-blade strategy).",
+    "node": "SNOTEL:367",
+    "station_triplet": "367:WY:SNTL",
+    "lat": 41.367,
+    "lon": -106.233,
+    "duration": "DAILY",
+    "elements": ["WTEQ", "SNWD", "PREC", "PRCP", "TOBS", "TAVG", "SMS", "STO", "RHUM", "WSPD"]
+  },
+  "sage": {
+    "comment": "Sage/Waggle node VSNs. The GLEES Thor Blade edge node is the primary live source for the GLEES instrument cluster (Tier 3/4 in SPEC.md). Add its VSN + GLEES coordinates once known; until then the fetcher skips (no unbounded network-wide pull) and the workflow uses the AmeriFlux historical archive only. Each node: {vsn, lat, lon}.",
+    "nodes": [],
+    "_example_thor_blade_node": {
+      "vsn": "W0XX",
+      "lat": 41.3665,
+      "lon": -106.2399,
+      "note": "GLEES Thor Blade — replace W0XX with the real VSN to enable the live Sage path"
+    },
+    "measurements": {
+      "soil_moisture": ["env.soil.moisture", "env.soil.water_content"],
+      "soil_temp": ["env.soil.temperature"],
+      "air_temp": ["env.temperature"],
+      "rel_humidity": ["env.relative_humidity"],
+      "pressure": ["env.pressure"],
+      "wind_speed": ["env.wind.speed"],
+      "precip": ["env.raingauge.total_acc", "env.precipitation"],
+      "snow_depth": ["env.snow.depth"],
+      "swe": ["env.snow.water_equivalent"],
+      "netrad": ["env.radiation.net"],
+      "sw_in": ["env.radiation.shortwave_incoming"],
+      "lw_in": ["env.radiation.longwave_incoming"],
+      "le": ["env.flux.latent_heat"],
+      "h": ["env.flux.sensible_heat"],
+      "et": ["env.flux.evapotranspiration"],
+      "surface_temp": ["env.thermal.surface_temperature"]
+    },
+    "image_streams": {
+      "comment": "Camera/thermal uploads (Sage 'upload' records). Consumed by the planned image_inference stage (SPEC.md 8.5) to derive snow_cover_fraction, canopy_greenness (GCC), and surface_temp.",
+      "rgb_camera": "upload",
+      "thermal_camera": "upload"
+    }
+  }
+}

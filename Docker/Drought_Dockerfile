@@ -1,0 +1,22 @@
+# Container for the Drought / Forest-Water / Wildfire Pegasus workflow.
+#   docker build -t kthare10/drought:latest -f Docker/Drought_Dockerfile .
+#   docker push kthare10/drought:latest
+FROM python:3.11-slim
+
+LABEL maintainer="kthare10@renci.org"
+LABEL description="SAGE + GLEES drought, snowmelt, and wildfire monitoring layers"
+
+RUN apt-get update && apt-get install -y --no-install-recommends wget curl \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/drought
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY bin/ /opt/drought/bin/
+COPY region_config.json /opt/drought/
+RUN chmod +x /opt/drought/bin/*.py
+
+ENV PYTHONUNBUFFERED=1

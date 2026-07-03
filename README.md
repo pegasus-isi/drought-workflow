@@ -233,9 +233,9 @@ docker push kthare10/drought:latest
 
 ## Outputs
 
-`output/` holds the five layer JSONs and `drought_dashboard.png`. The sample
-outputs checked in were generated from a **synthetic** GLEES BASE season for
-illustration; real runs replace them with fetched data.
+A run writes the five layer JSONs and `drought_dashboard.png` to `output/`
+(the `local` site's `LOCAL_STORAGE`). That directory is git-ignored — it holds
+generated artifacts, not source — so it is created on first run.
 
 ## License
 

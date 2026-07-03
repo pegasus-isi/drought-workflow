@@ -236,3 +236,7 @@ docker push kthare10/drought:latest
 `output/` holds the five layer JSONs and `drought_dashboard.png`. The sample
 outputs checked in were generated from a **synthetic** GLEES BASE season for
 illustration; real runs replace them with fetched data.
+
+## License
+
+Licensed under the Apache License, Version 2.0. See [`LICENSE`](LICENSE).

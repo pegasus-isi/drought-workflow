@@ -1,0 +1,54 @@
+# Container for the Drought / Forest-Water / Wildfire Pegasus workflow.
+# SAGE + GLEES/AmeriFlux + SNOTEL drought, snowmelt, and wildfire layers.
+#
+# Converted from Docker/Drought_Dockerfile. `Bootstrap: docker` pulls and
+# converts the OCI base image directly, so no Docker installation is needed to
+# build the .sif.
+#
+# IMPORTANT: %files source paths resolve against the directory `apptainer build`
+# is invoked from — the same rule as Docker's build context. Build from the
+# workflow root, not from inside Apptainer/:
+#
+#   cd drought-workflow
+#   apptainer build Apptainer/Drought_Container.sif Apptainer/Drought_Container.def
+#
+# The embedded bin/ and region_config.json below mirror the Dockerfile so the
+# image stays usable standalone. The Pegasus run does not depend on them:
+# transformations are is_stageable=True, and drought_common.py plus
+# region_config.json are registered in the Replica Catalog and added as explicit
+# job inputs (workflow_generator.py).
+
+Bootstrap: docker
+From: python:3.11-slim
+
+%files
+    requirements.txt /opt/drought/requirements.txt
+    bin/ /opt/drought/bin/
+    region_config.json /opt/drought/region_config.json
+
+%post
+    # curl + wget are mandatory: PegasusLite downloads its worker package
+    # inside the container before the job script ever runs.
+    apt-get update && \
+        apt-get install -y --no-install-recommends \
+            wget \
+            curl \
+            ca-certificates
+    rm -rf /var/lib/apt/lists/*
+
+    # %files copies run before %post regardless of section order, so the
+    # requirements file is already in place here.
+    pip install --no-cache-dir -r /opt/drought/requirements.txt
+
+    chmod +x /opt/drought/bin/*.py
+
+%environment
+    # Set Python to not buffer output (important for Pegasus log capture)
+    export PYTHONUNBUFFERED=1
+
+%runscript
+    exec /bin/bash "$@"
+
+%labels
+    maintainer kthare10@renci.org
+    description SAGE + GLEES drought, snowmelt, and wildfire monitoring layers

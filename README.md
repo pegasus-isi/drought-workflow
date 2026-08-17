@@ -15,6 +15,10 @@ The reference domain is the **Snowy Range, Medicine Bow National Forest, WY** �
 the GLEES Brooklyn Tower (US-GLE, 41.3665 °N, −106.2399 °W, 3197 m, subalpine
 spruce-fir). Re-target it by editing `region_config.json`.
 
+> **Related:** [`../cper-soilmoisture-workflow/`](../cper-soilmoisture-workflow/)
+> — a rangeland soil-moisture mapping workflow for the USDA-ARS Central Plains
+> Experimental Range that shares this repo's long-format observation contract.
+
 ## Workflow Architecture
 
 ![Drought workflow DAG](images/workflow.png)
@@ -129,9 +133,10 @@ Index definitions:
 
 - **Pegasus WMS ≥ 5.0** and **HTCondor** on the submit host (`pegasus-plan`,
   `pegasus-status`, `condor_q` on the `PATH`).
-- **Singularity/Apptainer** on the execution nodes — the transformation catalog
-  runs every job inside `docker://kthare10/drought:latest` (pulled and converted
-  automatically). No local Python deps are needed on the execution side.
+- **Apptainer** on the execution nodes — the transformation catalog runs every
+  job inside `Apptainer/Drought_Container.sif`, which Pegasus stages out like any
+  other input file (`image_site="local"`, no registry pull). Build it first; see
+  *Container* below. No local Python deps are needed on the execution side.
 - **Python 3.11** on the submit host, only to run `workflow_generator.py`.
 - **AmeriFlux credentials** for the GLEES flux data (free), or a
   pre-downloaded BASE CSV — see *GLEES / AmeriFlux* under Data Sources.
@@ -227,9 +232,18 @@ layer → dashboard scripts directly against `output/`.
 ## Container
 
 ```sh
-docker build -t kthare10/drought:latest -f Docker/Drought_Dockerfile .
-docker push kthare10/drought:latest
+# Run from the workflow root: %files sources resolve against the invocation
+# directory, exactly like Docker's build context.
+apptainer build Apptainer/Drought_Container.sif Apptainer/Drought_Container.def
 ```
+
+No registry push — Pegasus stages the `.sif` like any other input file, and
+`workflow_generator.py` looks for `Apptainer/Drought_Container.sif` by default
+(override with `--container-sif`).
+
+Apptainer cannot build on macOS, and a `.sif` is single-architecture — build on
+a Linux host matching your worker nodes. See `../APPTAINER.md`. The legacy
+`Docker/Drought_Dockerfile` is kept as a fallback.
 
 ## Outputs
 

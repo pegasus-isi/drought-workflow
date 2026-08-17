@@ -85,14 +85,27 @@ class DroughtWorkflow:
         logger.info("Creating replica catalog")
         self.rc = ReplicaCatalog()
 
-    def create_transformation_catalog(self, exec_site_name, container_image):
+    def create_transformation_catalog(self, exec_site_name, container_sif):
         logger.info("Creating transformation catalog")
         self.tc = TransformationCatalog()
+        # A local Apptainer .sif built with `apptainer build`. Pegasus stages
+        # the file like any other input, so image_site is the site where the
+        # .sif physically lives (the submit host = "local").
+        sif_path = (
+            container_sif
+            if os.path.isabs(container_sif)
+            else os.path.join(self.wf_dir, container_sif)
+        )
+        if not os.path.exists(sif_path):
+            logger.warning(
+                "Apptainer image not found at %s — build it first with: "
+                "apptainer build %s Apptainer/Drought_Container.def",
+                sif_path, sif_path)
         container = Container(
             "drought_container",
             container_type=Container.SINGULARITY,
-            image=f"docker://{container_image}",
-            image_site="docker_hub",
+            image="file://" + sif_path,
+            image_site="local",
         )
         self.tc.add_containers(container)
 
@@ -309,8 +322,10 @@ def main():
                              "(skips the credentialed download)")
     parser.add_argument("-e", "--execution-site-name", default="condorpool",
                         help="HTCondor pool name for execution")
-    parser.add_argument("--container-image", default="kthare10/drought:latest",
-                        help="Docker container image for workflow")
+    parser.add_argument("--container-sif",
+                        default="Apptainer/Drought_Container.sif",
+                        help="Path to the Apptainer .sif image, absolute or "
+                             "relative to the workflow directory")
     parser.add_argument("-o", "--output", default="workflow.yml",
                         help="Output workflow file")
     args = parser.parse_args()
@@ -329,7 +344,7 @@ def main():
         wf.create_replica_catalog()
         wf.create_transformation_catalog(
             exec_site_name=args.execution_site_name,
-            container_image=args.container_image,
+            container_sif=args.container_sif,
         )
         wf.create_workflow(args)
         wf.write()

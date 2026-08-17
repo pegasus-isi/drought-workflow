@@ -15,6 +15,10 @@ The reference domain is the **Snowy Range, Medicine Bow National Forest, WY** �
 the GLEES Brooklyn Tower (US-GLE, 41.3665 °N, −106.2399 °W, 3197 m, subalpine
 spruce-fir). Re-target it by editing `region_config.json`.
 
+> **Related:** [`../cper-soilmoisture-workflow/`](../cper-soilmoisture-workflow/)
+> — a rangeland soil-moisture mapping workflow for the USDA-ARS Central Plains
+> Experimental Range that shares this repo's long-format observation contract.
+
 ## Workflow Architecture
 
 ![Drought workflow DAG](images/workflow.png)
@@ -90,7 +94,8 @@ export AMERIFLUX_USER_ID="your_username"
 export AMERIFLUX_USER_EMAIL="you@example.org"   # register at ameriflux.lbl.gov
 ```
 
-Or skip the credentialed download and pass a BASE file you fetched by hand:
+Or skip the credentialed download and pass a BASE file you fetched by hand
+(build the container first — see [step 3](#3-build-the-container)):
 
 ```sh
 python workflow_generator.py --glees-base-csv AMF_US-GLE_BASE_HH_20-5.csv -o workflow.yml
@@ -129,9 +134,10 @@ Index definitions:
 
 - **Pegasus WMS ≥ 5.0** and **HTCondor** on the submit host (`pegasus-plan`,
   `pegasus-status`, `condor_q` on the `PATH`).
-- **Singularity/Apptainer** on the execution nodes — the transformation catalog
-  runs every job inside `docker://kthare10/drought:latest` (pulled and converted
-  automatically). No local Python deps are needed on the execution side.
+- **Apptainer** on the execution nodes — the transformation catalog runs every
+  job inside `Apptainer/Drought_Container.sif`, which Pegasus stages out like any
+  other input file (`image_site="local"`, no registry pull). Build it first — step 3
+  below. No local Python deps are needed on the execution side.
 - **Python 3.11** on the submit host, only to run `workflow_generator.py`.
 - **AmeriFlux credentials** for the GLEES flux data (free), or a
   pre-downloaded BASE CSV — see *GLEES / AmeriFlux* under Data Sources.
@@ -154,10 +160,59 @@ export AMERIFLUX_USER_EMAIL="you@example.org"   # register at ameriflux.lbl.gov
 ```
 
 …or skip the credentialed download by passing a BASE file you fetched by hand
-(`--glees-base-csv`, see step 3). Either way SNOTEL #367 supplies the live
+(`--glees-base-csv`, see step 4). Either way SNOTEL #367 supplies the live
 snow/SWE/precip data with no auth.
 
-### 3. Generate the DAG
+### 3. Build the container
+
+Do this before step 4 — the generator expects the `.sif` to exist.
+
+```sh
+# Run from the workflow root: %files sources resolve against the invocation
+# directory, exactly like Docker's build context.
+apptainer build Apptainer/Drought_Container.sif Apptainer/Drought_Container.def
+
+# Verify
+apptainer exec Apptainer/Drought_Container.sif \
+    python3 -c "import pandas, numpy, matplotlib, scipy; print('ok')"
+apptainer exec Apptainer/Drought_Container.sif which curl wget
+```
+
+No registry push — Pegasus stages the `.sif` like any other input file, and
+`workflow_generator.py` looks for `Apptainer/Drought_Container.sif` by default
+(override with `--container-sif`).
+
+Apptainer cannot build on macOS, and a `.sif` is single-architecture — build on a
+Linux host matching your worker nodes. See [`APPTAINER.md`](APPTAINER.md). The
+legacy `Docker/Drought_Dockerfile` is kept as a fallback.
+
+<details>
+<summary>Optional: publish the image to ghcr.io</summary>
+
+Useful for sharing one build across a team or citing an immutable artifact. Needs a
+GitHub token with `write:packages`.
+
+```bash
+echo "$GHCR_TOKEN" | apptainer registry login --username <github-user> \
+    --password-stdin oras://ghcr.io
+
+TAG=$(git rev-parse --short HEAD)
+apptainer push Apptainer/Drought_Container.sif \
+    oras://ghcr.io/pegasus-isi/drought-workflow:$TAG
+
+# On the submit host, pull back to the path the generator expects
+apptainer pull Apptainer/Drought_Container.sif \
+    oras://ghcr.io/pegasus-isi/drought-workflow:$TAG
+```
+
+Do **not** put the `oras://` URL in the transformation catalog — Pegasus supports
+`docker://`, `shub://`, `library://`, `shifter://` and `file://`, not `oras://`.
+Treat ghcr.io as a distribution channel and keep staging the local `.sif`. Details in
+[`APPTAINER.md`](APPTAINER.md).
+
+</details>
+
+### 4. Generate the DAG
 
 ```sh
 python workflow_generator.py --config region_config.json -o workflow.yml
@@ -196,7 +251,7 @@ reduced-input behavior — expect thinner layers until you add GLEES.
 The generator also writes the sites, replica, and transformation catalogs and a
 `pegasus.properties` file next to `workflow.yml`.
 
-### 4. Plan, submit, and monitor
+### 5. Plan, submit, and monitor
 
 ```sh
 pegasus-plan --submit -s condorpool -o local workflow.yml
@@ -226,10 +281,9 @@ layer → dashboard scripts directly against `output/`.
 
 ## Container
 
-```sh
-docker build -t kthare10/drought:latest -f Docker/Drought_Dockerfile .
-docker push kthare10/drought:latest
-```
+See [step 3](#3-build-the-container) for the build command and the optional
+ghcr.io publishing recipe; [`APPTAINER.md`](APPTAINER.md) has the
+definition-file reference and the Docker-to-Apptainer translation notes.
 
 ## Outputs
 

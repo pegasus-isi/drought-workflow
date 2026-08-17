@@ -426,7 +426,9 @@ copy the soilmoisture `--enable-dpu` mechanics.
   when present, recompute when absent.
 - **Portability:** pure-Python + pandas/numpy/scipy/matplotlib (v1), runs in the
   container; no host services. v2 image/ML/raster deps are container-scoped.
-- **Reproducibility:** pinned `requirements.txt` + tagged container.
+- **Reproducibility:** pinned `requirements.txt` + a versioned Apptainer image
+  (`Apptainer/Drought_Container.def` built to a `.sif` that Pegasus stages;
+  new filename per dependency change rather than mutating one in place).
 - **Privacy:** credentials only via environment, never written into the DAG.
 
 ---

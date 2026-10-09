@@ -226,9 +226,27 @@ Generator options:
 | `--sources` | `sage glees snotel` | Which sources to fetch. Pass a subset to include only those fetch jobs |
 | `--start-date` / `--end-date` | from config `date_range` | Override the fetch window (`YYYY-MM-DD`) |
 | `--glees-base-csv` | — | Use a pre-downloaded AmeriFlux BASE CSV instead of the credentialed download |
-| `-e`, `--execution-site-name` | `condorpool` | HTCondor pool the jobs run on |
-| `--container-image` | `kthare10/drought:latest` | Docker image backing every job |
+| `-e`, `--execution-site` | `compute` | Site to plan against (the name hosted catalogs give their site) |
+| `-s`, `--hosted-site-catalog` | (none; `~/.pegasusrc` if set) | Hosted site catalog to plan against, e.g. `unity.yml` |
+| `--site-style` | `auto` | `auto`: keep an existing `sites.yml` entry or hosted catalog, else write `compute` as an HTCondor pool; `condor`/`slurm`: (re)write it; `none`: leave `sites.yml` alone |
+| `--queue`, `--project` | — | Batch partition and allocation account (Slurm) |
+| `--site-scratch` | `./work` | Slurm shared scratch visible to workers and the submit host |
+| `--site-profile`, `--tag-profile` | — | Extra profiles on the site or on tagged jobs; repeatable |
+| `--shared-filesystem` | `auto` | Read inputs directly from the submit host (on for Slurm, off for HTCondor) |
+| `--sites-yml` | `sites.yml` | Local site catalog |
+| `--container-sif` | `Apptainer/Drought_Container.sif` | Apptainer image, absolute or relative to the workflow directory |
 | `-o`, `--output` | `workflow.yml` | Output workflow file |
+
+### Sites
+
+The workflow names no scheduler: each job states its resources and a
+wall-clock runtime, and plans against a site named `compute`. With
+`-s unity.yml` (or a hosted catalog set in `~/.pegasusrc`) the hosted catalog
+defines it; with no options `custom_sites.py` writes it to `sites.yml` as an
+HTCondor pool. For a Slurm cluster add
+`--site-style slurm --queue cpu --project my_lab`, then
+`pegasus-plan --submit -s compute -o local workflow.yml`.
+`custom_sites.py` also runs standalone (`./custom_sites.py --help`).
 
 **Running with only some sources.** By default all three fetchers run and
 `harmonize` merges whatever they return. To start small — or to avoid the
@@ -254,7 +272,7 @@ The generator also writes the sites, replica, and transformation catalogs and a
 ### 5. Plan, submit, and monitor
 
 ```sh
-pegasus-plan --submit -s condorpool -o local workflow.yml
+pegasus-plan --submit -s compute -o local workflow.yml
 pegasus-status -w <submit_dir>          # poll progress
 pegasus-analyzer <submit_dir>           # debug any failed jobs
 ```

@@ -226,27 +226,34 @@ Generator options:
 | `--sources` | `sage glees snotel` | Which sources to fetch. Pass a subset to include only those fetch jobs |
 | `--start-date` / `--end-date` | from config `date_range` | Override the fetch window (`YYYY-MM-DD`) |
 | `--glees-base-csv` | — | Use a pre-downloaded AmeriFlux BASE CSV instead of the credentialed download |
-| `-e`, `--execution-site` | `compute` | Site to plan against (the name hosted catalogs give their site) |
-| `-s`, `--hosted-site-catalog` | (none; `~/.pegasusrc` if set) | Hosted site catalog to plan against, e.g. `unity.yml` |
-| `--site-style` | `auto` | `auto`: keep an existing `sites.yml` entry or hosted catalog, else write `compute` as an HTCondor pool; `condor`/`slurm`: (re)write it; `none`: leave `sites.yml` alone |
-| `--queue`, `--project` | — | Batch partition and allocation account (Slurm) |
-| `--site-scratch` | `./work` | Slurm shared scratch visible to workers and the submit host |
-| `--site-profile`, `--tag-profile` | — | Extra profiles on the site or on tagged jobs; repeatable |
-| `--shared-filesystem` | `auto` | Read inputs directly from the submit host (on for Slurm, off for HTCondor) |
-| `--sites-yml` | `sites.yml` | Local site catalog |
+| `-s`, `--hosted-site-catalog` | (none; `~/.pegasusrc` if set) | [Hosted site catalog](https://github.com/pegasushub/pegasus-site-catalogs/tree/main/conf) to plan against, e.g. `access-pegasus.yml`, `unity.yml` |
+| `-e`, `--execution-site-name` (alias `--execution-site`) | `compute` | Execution site name; `condorpool` on a plain HTCondor pool with no site catalog |
 | `--container-sif` | `Apptainer/Drought_Container.sif` | Apptainer image, absolute or relative to the workflow directory |
 | `-o`, `--output` | `workflow.yml` | Output workflow file |
 
 ### Sites
 
-The workflow names no scheduler: each job states its resources and a
-wall-clock runtime, and plans against a site named `compute`. With
-`-s unity.yml` (or a hosted catalog set in `~/.pegasusrc`) the hosted catalog
-defines it; with no options `custom_sites.py` writes it to `sites.yml` as an
-HTCondor pool. For a Slurm cluster add
-`--site-style slurm --queue cpu --project my_lab`, then
-`pegasus-plan --submit -s compute -o local workflow.yml`.
-`custom_sites.py` also runs standalone (`./custom_sites.py --help`).
+Jobs run on a site named `compute`, defined by a centrally hosted site catalog
+(`-s unity.yml`, or one set once in `~/.pegasusrc`); the catalog carries the
+partition, allocation and scratch for that resource. The generator writes no
+site catalog. On a plain HTCondor pool with no catalog, generate with
+`-e condorpool` — Pegasus provides a default `condorpool` site — and plan with
+`-s condorpool`. `Drought-Workflow.ipynb` runs the same generator class
+interactively; its `create_sites_catalog()` writes a local HTCondor `compute`
+catalog instead.
+
+```bash
+# Hosted site catalog (or one set in ~/.pegasusrc): generate, then plan + submit
+python3 workflow_generator.py --config region_config.json --sources snotel -s unity.yml
+pegasus-plan --dir submit -s compute -o local --submit workflow.yml
+
+# Plain HTCondor pool, no site catalog
+python3 workflow_generator.py --config region_config.json --sources snotel -e condorpool
+pegasus-plan --dir submit -s condorpool -o local --submit workflow.yml
+
+# Or interactively: the notebook drives the same DroughtWorkflow class
+jupyter notebook Drought-Workflow.ipynb
+```
 
 **Running with only some sources.** By default all three fetchers run and
 `harmonize` merges whatever they return. To start small — or to avoid the
@@ -266,20 +273,23 @@ A SNOTEL-only run supplies snow/SWE/precip/air-temp but no flux or soil-moisture
 data, so the forest-water-stress and soil-moisture layers fall back to their
 reduced-input behavior — expect thinner layers until you add GLEES.
 
-The generator also writes the sites, replica, and transformation catalogs and a
-`pegasus.properties` file next to `workflow.yml`.
+The generator also writes the replica and transformation catalogs and a
+`pegasus.properties` file next to `workflow.yml`. It does not plan or submit;
+it prints the command below.
 
 ### 5. Plan, submit, and monitor
 
 ```sh
-pegasus-plan --submit -s compute -o local workflow.yml
+pegasus-plan --dir submit -s compute -o local --submit workflow.yml
 pegasus-status -w <submit_dir>          # poll progress
 pegasus-analyzer <submit_dir>           # debug any failed jobs
 ```
 
 `-o local` stages the final layer JSONs and `drought_dashboard.png` back to the
-`output/` directory (the `local` site's `LOCAL_STORAGE`). On success you'll find
-the five layer JSONs and the dashboard PNG there — see *Outputs* below.
+submit host: to `wf-output/` in the directory you planned from (Pegasus's
+default `local` site — the generator writes no site catalog), or to `output/`
+when the notebook's `create_sites_catalog()` defined `local`. On success you'll
+find the five layer JSONs and the dashboard PNG there — see *Outputs* below.
 
 ### Local smoke test (no Pegasus)
 
@@ -305,9 +315,10 @@ definition-file reference and the Docker-to-Apptainer translation notes.
 
 ## Outputs
 
-A run writes the five layer JSONs and `drought_dashboard.png` to `output/`
-(the `local` site's `LOCAL_STORAGE`). That directory is git-ignored — it holds
-generated artifacts, not source — so it is created on first run.
+A run writes the five layer JSONs and `drought_dashboard.png` to `wf-output/`
+when planned from the CLI (Pegasus's default `local` site), or to `output/` when
+run from `Drought-Workflow.ipynb`. Both hold generated artifacts, not source,
+and are created on first run.
 
 ## License
 

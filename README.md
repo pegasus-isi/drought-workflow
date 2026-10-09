@@ -245,11 +245,11 @@ catalog instead.
 ```bash
 # Hosted site catalog (or one set in ~/.pegasusrc): generate, then plan + submit
 python3 workflow_generator.py --config region_config.json --sources snotel -s unity.yml
-pegasus-plan --dir submit -s compute -o local --submit workflow.yml
+pegasus-plan --dir submit -s compute -o local --output-dir "$PWD/output" --submit workflow.yml
 
 # Plain HTCondor pool, no site catalog
 python3 workflow_generator.py --config region_config.json --sources snotel -e condorpool
-pegasus-plan --dir submit -s condorpool -o local --submit workflow.yml
+pegasus-plan --dir submit -s condorpool -o local --output-dir "$PWD/output" --submit workflow.yml
 
 # Or interactively: the notebook drives the same DroughtWorkflow class
 jupyter notebook Drought-Workflow.ipynb
@@ -280,15 +280,16 @@ it prints the command below.
 ### 5. Plan, submit, and monitor
 
 ```sh
-pegasus-plan --dir submit -s compute -o local --submit workflow.yml
+pegasus-plan --dir submit -s compute -o local --output-dir "$PWD/output" --submit workflow.yml
 pegasus-status -w <submit_dir>          # poll progress
 pegasus-analyzer <submit_dir>           # debug any failed jobs
 ```
 
 `-o local` stages the final layer JSONs and `drought_dashboard.png` back to the
-submit host: to `wf-output/` in the directory you planned from (Pegasus's
-default `local` site — the generator writes no site catalog), or to `output/`
-when the notebook's `create_sites_catalog()` defined `local`. On success you'll
+submit host, to `output/`: the printed plan command passes `--output-dir`
+(the generator writes no site catalog, and Pegasus's default `local` site would
+otherwise use `wf-output/`), and the notebook's `create_sites_catalog()` points
+`local` there too. On success you'll
 find the five layer JSONs and the dashboard PNG there — see *Outputs* below.
 
 ### Local smoke test (no Pegasus)
@@ -315,8 +316,8 @@ definition-file reference and the Docker-to-Apptainer translation notes.
 
 ## Outputs
 
-A run writes the five layer JSONs and `drought_dashboard.png` to `wf-output/`
-when planned from the CLI (Pegasus's default `local` site), or to `output/` when
+A run writes the five layer JSONs and `drought_dashboard.png` to `output/`,
+whether planned with the CLI's printed command (it passes `--output-dir`) or
 run from `Drought-Workflow.ipynb`. Both hold generated artifacts, not source,
 and are created on first run.
 

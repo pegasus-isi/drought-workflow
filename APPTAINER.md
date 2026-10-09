@@ -80,7 +80,7 @@ apptainer exec Apptainer/Earthquake_Container.sif which curl wget   # PegasusLit
 #    on a plain HTCondor pool with no catalog, add -e condorpool and plan with
 #    -s condorpool instead.
 ./workflow_generator.py --regions california --start-date 2024-01-01 -o workflow.yml
-pegasus-plan --dir submit -s compute -o local --submit workflow.yml
+pegasus-plan --dir submit -s compute -o local --output-dir "$PWD/output" --submit workflow.yml
 ```
 
 If the `.sif` lives somewhere other than `<workflow>/Apptainer/`, every generator

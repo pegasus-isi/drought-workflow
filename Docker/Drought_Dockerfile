@@ -1,7 +1,7 @@
 # Container for the Drought / Forest-Water / Wildfire Pegasus workflow.
 #   docker build -t kthare10/drought:latest -f Docker/Drought_Dockerfile .
 #   docker push kthare10/drought:latest
-FROM python:3.11-slim
+FROM python:3.11-slim-trixie
 
 LABEL maintainer="kthare10@renci.org"
 LABEL description="SAGE + GLEES drought, snowmelt, and wildfire monitoring layers"

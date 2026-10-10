@@ -22,6 +22,17 @@ DAG shape:
 
 Usage:
     ./workflow_generator.py --config region_config.json -o workflow.yml
+
+    # A centrally hosted site catalog, or a plain HTCondor pool:
+    ./workflow_generator.py --config region_config.json -s unity.yml
+    ./workflow_generator.py --sources snotel -e condorpool
+
+Sites follow pegasus-isi/pegasus-gromacs: jobs run on a site named "compute",
+defined by a centrally hosted site catalog (-s access-pegasus.yml, ...;
+https://github.com/pegasushub/pegasus-site-catalogs) or by one in
+~/.pegasusrc. The generator writes no site catalog and never submits; it
+prints the pegasus-plan command. Drought-Workflow.ipynb drives the same class
+interactively.
 """
 
 import argparse
@@ -59,33 +70,93 @@ class DroughtWorkflow:
         self.tc.write()
         self.wf.write(file=self.dagfile)
 
-    def create_pegasus_properties(self):
+    # ------------------------------------------------------------------
+    # Plan / run / monitor (thin wrappers over the Pegasus API Workflow
+    # object, for interactive use e.g. from a Jupyter notebook)
+    # ------------------------------------------------------------------
+    def plan_submit(self, exec_site_name="compute", raise_errors=False):
+        try:
+            self.wf.plan(
+                dir="submit",
+                sites=[exec_site_name],
+                output_sites=["local"],
+                cleanup="none",
+                verbose=1,
+                submit=True,
+            )
+        except PegasusClientError as e:
+            print(e)
+            if raise_errors:
+                raise
+
+    def status(self):
+        try:
+            self.wf.status(long=True)
+        except PegasusClientError as e:
+            print(e)
+
+    def wait(self):
+        try:
+            self.wf.wait()
+        except PegasusClientError as e:
+            print(e)
+
+    def statistics(self):
+        try:
+            self.wf.statistics()
+        except PegasusClientError as e:
+            print(e)
+
+    def create_pegasus_properties(self, hosted_site_catalog=None):
         self.props = Properties()
         self.props["pegasus.transfer.threads"] = "16"
+        if hosted_site_catalog:
+            # Use one of Pegasus' centrally hosted site catalogs instead of
+            # a locally generated one. pegasus-plan downloads and caches the
+            # named file from the catalog repository at plan time.
+            # https://pegasus.isi.edu/documentation/reference-guide/catalogs.html#centrally-hosted-site-catalogs
+            self.props["pegasus.catalog.site.repo.file"] = hosted_site_catalog
 
-    def create_sites_catalog(self, exec_site_name="condorpool"):
-        logger.info("Creating site catalog for execution site: %s", exec_site_name)
+    # ------------------------------------------------------------------
+    # Site Catalog
+    #
+    # Not used by the CLI below by default — pegasus-plan resolves the site
+    # catalog from a centrally hosted one instead (see -s/--hosted-site-catalog
+    # and create_pegasus_properties above). Kept for programmatic/notebook use
+    # when a self-contained, locally generated HTCondor site catalog is wanted.
+    # ------------------------------------------------------------------
+    def create_sites_catalog(self, exec_site_name="compute"):
         self.sc = SiteCatalog()
+
         local = Site("local").add_directories(
-            Directory(Directory.SHARED_SCRATCH, self.shared_scratch_dir).add_file_servers(
+            Directory(
+                Directory.SHARED_SCRATCH, self.shared_scratch_dir
+            ).add_file_servers(
                 FileServer("file://" + self.shared_scratch_dir, Operation.ALL)
             ),
-            Directory(Directory.LOCAL_STORAGE, self.local_storage_dir).add_file_servers(
+            Directory(
+                Directory.LOCAL_STORAGE, self.local_storage_dir
+            ).add_file_servers(
                 FileServer("file://" + self.local_storage_dir, Operation.ALL)
             ),
         )
+
         exec_site = (
             Site(exec_site_name)
             .add_condor_profile(universe="vanilla")
             .add_pegasus_profile(style="condor")
         )
+
         self.sc.add_sites(local, exec_site)
 
     def create_replica_catalog(self):
         logger.info("Creating replica catalog")
         self.rc = ReplicaCatalog()
 
-    def create_transformation_catalog(self, exec_site_name, container_sif):
+    def create_transformation_catalog(self, container_sif,
+                                      exec_site_name="compute"):
+        """Container and transformations, registered on the execution site;
+        the .sif lives on "local" (the submit host) and is staged."""
         logger.info("Creating transformation catalog")
         self.tc = TransformationCatalog()
         # A local Apptainer .sif built with `apptainer build`. Pegasus stages
@@ -320,8 +391,22 @@ def main():
     parser.add_argument("--glees-base-csv",
                         help="Optional pre-downloaded AmeriFlux BASE CSV "
                              "(skips the credentialed download)")
-    parser.add_argument("-e", "--execution-site-name", default="condorpool",
-                        help="HTCondor pool name for execution")
+    parser.add_argument("-s", "--hosted-site-catalog", metavar="FILE",
+                        type=str, default=None,
+                        help="Name of a Pegasus centrally hosted site catalog "
+                             "to plan against (e.g. access-pegasus.yml), "
+                             "instead of a locally generated one. Sets "
+                             "pegasus.catalog.site.repo.file; see "
+                             "https://pegasus.isi.edu/documentation/"
+                             "reference-guide/catalogs.html"
+                             "#centrally-hosted-site-catalogs")
+    # --execution-site is kept as an alias: earlier releases used that name.
+    parser.add_argument("-e", "--execution-site-name", "--execution-site",
+                        dest="execution_site_name", metavar="STR",
+                        default="compute",
+                        help="Execution site name (default: compute; "
+                             "condorpool on a plain HTCondor pool with no "
+                             "site catalog)")
     parser.add_argument("--container-sif",
                         default="Apptainer/Drought_Container.sif",
                         help="Path to the Apptainer .sif image, absolute or "
@@ -339,13 +424,13 @@ def main():
 
     try:
         wf = DroughtWorkflow(dagfile=args.output)
-        wf.create_pegasus_properties()
-        wf.create_sites_catalog(exec_site_name=args.execution_site_name)
+
+        wf.create_pegasus_properties(
+            hosted_site_catalog=args.hosted_site_catalog)
         wf.create_replica_catalog()
         wf.create_transformation_catalog(
-            exec_site_name=args.execution_site_name,
             container_sif=args.container_sif,
-        )
+            exec_site_name=args.execution_site_name)
         wf.create_workflow(args)
         wf.write()
 
@@ -358,8 +443,15 @@ def main():
                     "drought warning, wildfire risk")
         logger.info("\nNext steps:")
         logger.info("  1. Review workflow: %s", args.output)
-        logger.info("  2. Submit: pegasus-plan --submit -s %s -o local %s",
-                    args.execution_site_name, args.output)
+        logger.info("  Execution site: %s", args.execution_site_name)
+        logger.info("  Hosted site catalog: %s", args.hosted_site_catalog
+                    or "(none — supply your own site catalog)")
+        # --output-dir: no site catalog defines "local", so Pegasus's
+        # built-in local site would otherwise stage outputs to ./wf-output.
+        logger.info("  2. Plan and submit: pegasus-plan --dir submit -s %s "
+                    "-o local --output-dir %s --submit %s",
+                    args.execution_site_name, wf.local_storage_dir,
+                    args.output)
         logger.info("  3. Monitor: pegasus-status <submit_dir>")
         logger.info("=" * 70 + "\n")
     except Exception as exc:

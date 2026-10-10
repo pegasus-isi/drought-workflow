@@ -14,3 +14,5 @@ sites.yml
 *.replicas.yml
 *.transformations.yml
 pegasus.properties
+wf-output/
+submit/

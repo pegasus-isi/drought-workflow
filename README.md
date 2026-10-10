@@ -226,9 +226,34 @@ Generator options:
 | `--sources` | `sage glees snotel` | Which sources to fetch. Pass a subset to include only those fetch jobs |
 | `--start-date` / `--end-date` | from config `date_range` | Override the fetch window (`YYYY-MM-DD`) |
 | `--glees-base-csv` | — | Use a pre-downloaded AmeriFlux BASE CSV instead of the credentialed download |
-| `-e`, `--execution-site-name` | `condorpool` | HTCondor pool the jobs run on |
-| `--container-image` | `kthare10/drought:latest` | Docker image backing every job |
+| `-s`, `--hosted-site-catalog` | (none; `~/.pegasusrc` if set) | [Hosted site catalog](https://github.com/pegasushub/pegasus-site-catalogs/tree/main/conf) to plan against, e.g. `access-pegasus.yml`, `unity.yml` |
+| `-e`, `--execution-site-name` (alias `--execution-site`) | `compute` | Execution site name; `condorpool` on a plain HTCondor pool with no site catalog |
+| `--container-sif` | `Apptainer/Drought_Container.sif` | Apptainer image, absolute or relative to the workflow directory |
 | `-o`, `--output` | `workflow.yml` | Output workflow file |
+
+### Sites
+
+Jobs run on a site named `compute`, defined by a centrally hosted site catalog
+(`-s unity.yml`, or one set once in `~/.pegasusrc`); the catalog carries the
+partition, allocation and scratch for that resource. The generator writes no
+site catalog. On a plain HTCondor pool with no catalog, generate with
+`-e condorpool` — Pegasus provides a default `condorpool` site — and plan with
+`-s condorpool`. `Drought-Workflow.ipynb` runs the same generator class
+interactively; its `create_sites_catalog()` writes a local HTCondor `compute`
+catalog instead.
+
+```bash
+# Hosted site catalog (or one set in ~/.pegasusrc): generate, then plan + submit
+python3 workflow_generator.py --config region_config.json --sources snotel -s unity.yml
+pegasus-plan --dir submit -s compute -o local --output-dir "$PWD/output" --submit workflow.yml
+
+# Plain HTCondor pool, no site catalog
+python3 workflow_generator.py --config region_config.json --sources snotel -e condorpool
+pegasus-plan --dir submit -s condorpool -o local --output-dir "$PWD/output" --submit workflow.yml
+
+# Or interactively: the notebook drives the same DroughtWorkflow class
+jupyter notebook Drought-Workflow.ipynb
+```
 
 **Running with only some sources.** By default all three fetchers run and
 `harmonize` merges whatever they return. To start small — or to avoid the
@@ -248,20 +273,24 @@ A SNOTEL-only run supplies snow/SWE/precip/air-temp but no flux or soil-moisture
 data, so the forest-water-stress and soil-moisture layers fall back to their
 reduced-input behavior — expect thinner layers until you add GLEES.
 
-The generator also writes the sites, replica, and transformation catalogs and a
-`pegasus.properties` file next to `workflow.yml`.
+The generator also writes the replica and transformation catalogs and a
+`pegasus.properties` file next to `workflow.yml`. It does not plan or submit;
+it prints the command below.
 
 ### 5. Plan, submit, and monitor
 
 ```sh
-pegasus-plan --submit -s condorpool -o local workflow.yml
+pegasus-plan --dir submit -s compute -o local --output-dir "$PWD/output" --submit workflow.yml
 pegasus-status -w <submit_dir>          # poll progress
 pegasus-analyzer <submit_dir>           # debug any failed jobs
 ```
 
 `-o local` stages the final layer JSONs and `drought_dashboard.png` back to the
-`output/` directory (the `local` site's `LOCAL_STORAGE`). On success you'll find
-the five layer JSONs and the dashboard PNG there — see *Outputs* below.
+submit host, to `output/`: the printed plan command passes `--output-dir`
+(the generator writes no site catalog, and Pegasus's default `local` site would
+otherwise use `wf-output/`), and the notebook's `create_sites_catalog()` points
+`local` there too. On success you'll
+find the five layer JSONs and the dashboard PNG there — see *Outputs* below.
 
 ### Local smoke test (no Pegasus)
 
@@ -287,9 +316,10 @@ definition-file reference and the Docker-to-Apptainer translation notes.
 
 ## Outputs
 
-A run writes the five layer JSONs and `drought_dashboard.png` to `output/`
-(the `local` site's `LOCAL_STORAGE`). That directory is git-ignored — it holds
-generated artifacts, not source — so it is created on first run.
+A run writes the five layer JSONs and `drought_dashboard.png` to `output/`,
+whether planned with the CLI's printed command (it passes `--output-dir`) or
+run from `Drought-Workflow.ipynb`. Both hold generated artifacts, not source,
+and are created on first run.
 
 ## License
 

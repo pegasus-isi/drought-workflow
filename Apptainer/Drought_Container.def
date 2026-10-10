@@ -19,11 +19,11 @@
 # job inputs (workflow_generator.py).
 
 Bootstrap: docker
-From: python:3.11-slim
+From: python:3.11-slim-trixie
 
 %files
     requirements.txt /opt/drought/requirements.txt
-    bin/ /opt/drought/bin/
+    bin /opt/drought/bin
     region_config.json /opt/drought/region_config.json
 
 %post

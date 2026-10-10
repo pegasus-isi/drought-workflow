@@ -19,7 +19,9 @@ python workflow_generator.py --config "$CONFIG" -o workflow.yml
 #                                                            SNOTEL-only needs no credentials)
 
 echo "==> 2. Plan & submit"
-echo "    pegasus-plan --submit -s condorpool -o local workflow.yml"
+echo "    pegasus-plan --dir submit -s compute -o local --output-dir \"$PWD/output\" --submit workflow.yml"
+echo "    (generate with -e condorpool and plan with -s condorpool on a plain"
+echo "     HTCondor pool with no site catalog)"
 echo "    pegasus-status <submit_dir>"
 
 # ---------------------------------------------------------------------------
